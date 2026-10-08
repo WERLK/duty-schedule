@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>班级值日表排班系统</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="css/style.css" />
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: { 50:'#eff6ff',100:'#dbeafe',200:'#bfdbfe',300:'#93c5fd',400:'#60a5fa',500:'#3b82f6',600:'#2563eb',700:'#1d4ed8',800:'#1e40af',900:'#1e3a8a' }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+  <!-- 顶部导航 -->
+  <nav class="bg-white shadow-sm sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-16">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center text-white font-bold shadow-md">值</div>
+          <h1 class="text-lg font-bold text-slate-800 hidden sm:block">班级值日表排班系统</h1>
+        </div>
+        <div class="flex items-center gap-2">
+          <!-- 班级切换 -->
+          <div class="relative">
+            <select id="classSelector" onchange="onClassChange(this.value)" class="appearance-none pl-3 pr-9 py-1.5 bg-primary-50 text-primary-700 border border-primary-200 rounded-lg text-sm font-medium cursor-pointer hover:bg-primary-100 focus:outline-none focus:ring-2 focus:ring-primary-400">
+            </select>
+            <svg class="w-4 h-4 absolute right-2 top-1/2 -translate-y-1/2 text-primary-500 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+          </div>
+          <button onclick="openClassManager()" class="p-2 rounded-lg hover:bg-slate-100 text-slate-600" title="班级管理">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
+          </button>
+          <button onclick="openSettings()" class="p-2 rounded-lg hover:bg-slate-100 text-slate-600" title="设置">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- 标签页导航 -->
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
+    <div class="bg-white rounded-2xl shadow-sm p-1.5 flex flex-wrap gap-1.5">
+      <button onclick="switchTab('dashboard')" data-tab="dashboard" class="tab-btn flex-1 min-w-[80px] py-2.5 px-4 rounded-xl text-sm font-medium transition-all">
+        📊 概览
+      </button>
+      <button onclick="switchTab('students')" data-tab="students" class="tab-btn flex-1 min-w-[80px] py-2.5 px-4 rounded-xl text-sm font-medium transition-all">
+        👥 学生名单
+      </button>
+      <button onclick="switchTab('schedule')" data-tab="schedule" class="tab-btn flex-1 min-w-[80px] py-2.5 px-4 rounded-xl text-sm font-medium transition-all">
+        📅 值日表
+      </button>
+    </div>
+  </div>
+
+  <!-- 主内容区 -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6 pb-16">
+
+    <!-- 概览页 -->
+    <section id="tab-dashboard" class="tab-content">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div class="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-6 text-white shadow-lg">
+          <div class="text-sm opacity-90">班级学生</div>
+          <div class="text-4xl font-bold mt-2" id="statStudents">0</div>
+          <div class="text-xs opacity-75 mt-1">人</div>
+        </div>
+        <div class="bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-2xl p-6 text-white shadow-lg">
+          <div class="text-sm opacity-90">值日任务</div>
+          <div class="text-4xl font-bold mt-2" id="statTasks">0</div>
+          <div class="text-xs opacity-75 mt-1">项</div>
+        </div>
+        <div class="bg-gradient-to-br from-amber-500 to-amber-600 rounded-2xl p-6 text-white shadow-lg">
+          <div class="text-sm opacity-90">本周值日人次</div>
+          <div class="text-4xl font-bold mt-2" id="statDutyCount">0</div>
+          <div class="text-xs opacity-75 mt-1">人次</div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow-sm p-6">
+        <h2 class="text-lg font-bold text-slate-800 mb-4">快速开始</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div onclick="switchTab('students')" class="cursor-pointer border-2 border-dashed border-slate-200 rounded-xl p-5 hover:border-primary-400 hover:bg-primary-50 transition">
+            <div class="text-2xl mb-2">👥</div>
+            <div class="font-semibold text-slate-800">添加学生</div>
+            <div class="text-sm text-slate-500 mt-1">录入班级学生名单</div>
+          </div>
+          <div onclick="openSettings()" class="cursor-pointer border-2 border-dashed border-slate-200 rounded-xl p-5 hover:border-primary-400 hover:bg-primary-50 transition">
+            <div class="text-2xl mb-2">🧹</div>
+            <div class="font-semibold text-slate-800">设置任务</div>
+            <div class="text-sm text-slate-500 mt-1">配置值日项目和人数</div>
+          </div>
+          <div onclick="switchTab('schedule')" class="cursor-pointer border-2 border-dashed border-slate-200 rounded-xl p-5 hover:border-primary-400 hover:bg-primary-50 transition">
+            <div class="text-2xl mb-2">📅</div>
+            <div class="font-semibold text-slate-800">生成值日表</div>
+            <div class="text-sm text-slate-500 mt-1">自动排班并查看</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow-sm p-6 mt-4">
+        <h2 class="text-lg font-bold text-slate-800 mb-4">本周值日表预览</h2>
+        <div id="dashboardSchedule" class="text-slate-500 text-sm">暂无数据，请先生成值日表</div>
+      </div>
+    </section>
+
+    <!-- 学生名单页 -->
+    <section id="tab-students" class="tab-content hidden">
+      <div class="bg-white rounded-2xl shadow-sm p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-lg font-bold text-slate-800">学生名单管理</h2>
+          <div class="flex gap-2">
+            <button onclick="document.getElementById('importExcelInput').click()" class="px-4 py-2 text-sm bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg hover:bg-emerald-100">📊 导入Excel</button>
+            <button onclick="document.getElementById('importWordInput').click()" class="px-4 py-2 text-sm bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg hover:bg-indigo-100">📄 导入Word</button>
+            <button onclick="openBatchAddStudents()" class="px-4 py-2 text-sm bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200">批量添加</button>
+            <button onclick="openAddStudent()" class="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 shadow-sm">+ 添加学生</button>
+            <input type="file" id="importExcelInput" accept=".xlsx,.xls,.csv" onchange="importFromExcel(event)" class="hidden" />
+            <input type="file" id="importWordInput" accept=".docx,.doc,.txt" onchange="importFromWord(event)" class="hidden" />
+          </div>
+        </div>
+
+        <div class="mb-4 flex flex-wrap gap-2">
+          <input type="text" id="studentSearch" placeholder="搜索学生姓名..." oninput="renderStudents()" class="flex-1 min-w-[200px] px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-400 text-sm" />
+          <select id="studentGroupFilter" onchange="renderStudents()" class="px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-400 text-sm">
+            <option value="">全部小组</option>
+          </select>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="bg-slate-50 text-slate-600">
+                <th class="px-4 py-3 text-left font-medium">序号</th>
+                <th class="px-4 py-3 text-left font-medium">姓名</th>
+                <th class="px-4 py-3 text-left font-medium">性别</th>
+                <th class="px-4 py-3 text-left font-medium">小组</th>
+                <th class="px-4 py-3 text-left font-medium">不可值日</th>
+                <th class="px-4 py-3 text-left font-medium">累计值日</th>
+                <th class="px-4 py-3 text-right font-medium">操作</th>
+              </tr>
+            </thead>
+            <tbody id="studentsTableBody" class="divide-y divide-slate-100"></tbody>
+          </table>
+          <div id="studentsEmpty" class="text-center py-12 text-slate-400 hidden">
+            <div class="text-5xl mb-3">📝</div>
+            <div>还没有学生，点击"添加学生"开始录入</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 值日表页 -->
+    <section id="tab-schedule" class="tab-content hidden">
+      <div class="bg-white rounded-2xl shadow-sm p-6 mb-4">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <h2 class="text-lg font-bold text-slate-800">值日表</h2>
+          <div class="flex flex-wrap items-center gap-2">
+            <!-- 视图切换 -->
+            <div class="flex bg-slate-100 rounded-lg p-0.5">
+              <button onclick="setScheduleView('task')" id="viewTaskBtn" class="px-3 py-1.5 text-xs rounded-md font-medium bg-white text-primary-600 shadow-sm">按任务</button>
+              <button onclick="setScheduleView('day')" id="viewDayBtn" class="px-3 py-1.5 text-xs rounded-md font-medium text-slate-500">按天</button>
+            </div>
+            <select id="scheduleWeekType" onchange="onWeekTypeChange()" class="px-3 py-2 border border-slate-200 rounded-lg text-sm">
+              <option value="this">本周</option>
+              <option value="next">下周</option>
+            </select>
+            <select id="scheduleWeekRange" onchange="renderSchedule()" class="px-3 py-2 border border-slate-200 rounded-lg text-sm"></select>
+            <button onclick="openGenerateModal()" class="px-4 py-2 text-sm bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 shadow-sm">⚡ 自动排班</button>
+            <button onclick="printSchedule()" class="px-4 py-2 text-sm bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200">🖨️ 打印</button>
+            <button onclick="exportScheduleImage()" class="px-4 py-2 text-sm bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200">📷 导出图片</button>
+          </div>
+        </div>
+        <div class="flex items-center gap-4 text-sm text-slate-500">
+          <span id="scheduleWeekInfo">--</span>
+          <span class="text-slate-300">|</span>
+          <span id="scheduleTip" class="text-amber-600"></span>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
+        <div id="scheduleContainer" class="overflow-x-auto"></div>
+        <div id="scheduleEmpty" class="text-center py-16 text-slate-400">
+          <div class="text-5xl mb-3">📅</div>
+          <div>尚未生成值日表</div>
+          <button onclick="generateSchedule()" class="mt-4 px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700">立即生成</button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ========== 弹窗：学生编辑 ========== -->
+  <div id="studentModal" class="modal hidden fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl w-full max-w-md p-6">
+      <h3 id="studentModalTitle" class="text-lg font-bold text-slate-800 mb-4">添加学生</h3>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">姓名 <span class="text-red-500">*</span></label>
+          <input type="text" id="studentName" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-400" placeholder="请输入学生姓名" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">性别</label>
+          <div class="flex gap-4">
+            <label class="flex items-center gap-2 cursor-pointer"><input type="radio" name="studentGender" value="男" checked /><span>男</span></label>
+            <label class="flex items-center gap-2 cursor-pointer"><input type="radio" name="studentGender" value="女" /><span>女</span></label>
+          </div>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">小组</label>
+          <input type="text" id="studentGroup" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-400" placeholder="可选，如：第一组" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">不可值日日期</label>
+          <div id="unavailableDays" class="flex flex-wrap gap-2">
+            <label class="flex items-center gap-1 cursor-pointer px-2.5 py-1 border border-slate-200 rounded-lg hover:bg-slate-50"><input type="checkbox" value="周一" class="ud-cb accent-primary-600" /><span class="text-sm">周一</span></label>
+            <label class="flex items-center gap-1 cursor-pointer px-2.5 py-1 border border-slate-200 rounded-lg hover:bg-slate-50"><input type="checkbox" value="周二" class="ud-cb accent-primary-600" /><span class="text-sm">周二</span></label>
+            <label class="flex items-center gap-1 cursor-pointer px-2.5 py-1 border border-slate-200 rounded-lg hover:bg-slate-50"><input type="checkbox" value="周三" class="ud-cb accent-primary-600" /><span class="text-sm">周三</span></label>
+            <label class="flex items-center gap-1 cursor-pointer px-2.5 py-1 border border-slate-200 rounded-lg hover:bg-slate-50"><input type="checkbox" value="周四" class="ud-cb accent-primary-600" /><span class="text-sm">周四</span></label>
+            <label class="flex items-center gap-1 cursor-pointer px-2.5 py-1 border border-slate-200 rounded-lg hover:bg-slate-50"><input type="checkbox" value="周五" class="ud-cb accent-primary-600" /><span class="text-sm">周五</span></label>
+          </div>
+          <p class="text-xs text-slate-400 mt-1">勾选后该学生在这些天不会被自动安排值日</p>
+        </div>
+      </div>
+      <div class="flex justify-end gap-2 mt-6">
+        <button onclick="closeModal('studentModal')" class="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg">取消</button>
+        <button onclick="saveStudent()" class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 弹窗：批量添加学生 ========== -->
+  <div id="batchStudentModal" class="modal hidden fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl w-full max-w-lg p-6">
+      <h3 class="text-lg font-bold text-slate-800 mb-4">批量添加学生</h3>
+      <p class="text-sm text-slate-500 mb-3">每行一个学生姓名，可选格式：<code class="bg-slate-100 px-1.5 py-0.5 rounded text-xs">姓名,性别,小组</code></p>
+      <textarea id="batchStudentText" rows="10" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-400 text-sm" placeholder="张三,男,第一组&#10;李四,女,第一组&#10;王五"></textarea>
+      <div class="flex justify-end gap-2 mt-4">
+        <button onclick="closeModal('batchStudentModal')" class="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg">取消</button>
+        <button onclick="saveBatchStudents()" class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700">添加</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 弹窗：调整值日 ========== -->
+  <div id="adjustModal" class="modal hidden fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl w-full max-w-md p-6 max-h-[80vh] overflow-y-auto">
+      <h3 class="text-lg font-bold text-slate-800 mb-2">调整值日人员</h3>
+      <p id="adjustInfo" class="text-sm text-slate-500 mb-4"></p>
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-2">选择学生</label>
+        <div id="adjustStudentList" class="space-y-2 max-h-64 overflow-y-auto"></div>
+      </div>
+      <div class="flex justify-end gap-2 mt-6">
+        <button onclick="closeModal('adjustModal')" class="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg">取消</button>
+        <button onclick="saveAdjust()" class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700">确认</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 弹窗：任务编辑 ========== -->
+  <div id="taskModal" class="modal hidden fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl w-full max-w-md p-6">
+      <h3 id="taskModalTitle" class="text-lg font-bold text-slate-800 mb-4">添加任务</h3>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">任务名称 <span class="text-red-500">*</span></label>
+          <input type="text" id="taskName" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-400" placeholder="如：扫地、擦黑板、倒垃圾" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">所需人数</label>
+          <input type="number" id="taskCount" min="1" value="1" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-400" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">图标（emoji）</label>
+          <input type="text" id="taskIcon" value="🧹" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-400" placeholder="🧹" />
+        </div>
+      </div>
+      <div class="flex justify-end gap-2 mt-6">
+        <button onclick="closeModal('taskModal')" class="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg">取消</button>
+        <button onclick="saveTask()" class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 弹窗：班级管理 ========== -->
+  <div id="classManagerModal" class="modal hidden fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl w-full max-w-md p-6">
+      <h3 class="text-lg font-bold text-slate-800 mb-4">班级管理</h3>
+      <div id="classList" class="space-y-2 mb-4 max-h-64 overflow-y-auto"></div>
+      <div class="flex gap-2">
+        <input type="text" id="newClassName" class="flex-1 px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-400 text-sm" placeholder="输入新班级名称" />
+        <button onclick="addClassAction()" class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm">新增</button>
+      </div>
+      <div class="flex justify-end mt-6">
+        <button onclick="closeModal('classManagerModal')" class="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 弹窗：自定义排班 ========== -->
+  <div id="generateModal" class="modal hidden fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto">
+      <h3 class="text-lg font-bold text-slate-800 mb-1">自定义排班</h3>
+      <p class="text-sm text-slate-500 mb-4">选择班级、参与学生和排班规则，生成值日表</p>
+
+      <div class="space-y-4">
+        <!-- 选择班级 -->
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">选择班级</label>
+          <select id="genClassId" onchange="onGenClassChange()" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-400 text-sm"></select>
+        </div>
+
+        <!-- 排班模式 -->
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">排班模式</label>
+          <div class="flex gap-3">
+            <label class="flex items-center gap-2 cursor-pointer px-3 py-2 border border-slate-200 rounded-lg flex-1 hover:bg-slate-50">
+              <input type="radio" name="genMode" value="fair" checked class="accent-primary-600" />
+              <div>
+                <div class="font-medium text-sm">公平模式</div>
+                <div class="text-xs text-slate-400">值日次数少的优先</div>
+              </div>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer px-3 py-2 border border-slate-200 rounded-lg flex-1 hover:bg-slate-50">
+              <input type="radio" name="genMode" value="group" class="accent-primary-600" />
+              <div>
+                <div class="font-medium text-sm">小组轮换</div>
+                <div class="text-xs text-slate-400">按小组轮流值日</div>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <!-- 值日范围 -->
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">值日范围</label>
+          <div class="flex gap-3">
+            <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="genExcludeHoliday" checked class="accent-primary-600" /><span class="text-sm">排除法定节假日</span></label>
+          </div>
+        </div>
+
+        <!-- 生成周数 -->
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">生成周数</label>
+          <select id="genWeekCount" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-400 text-sm">
+            <option value="1">1 周</option>
+            <option value="2">2 周</option>
+            <option value="4" selected>4 周</option>
+            <option value="8">8 周</option>
+            <option value="12">12 周</option>
+          </select>
+        </div>
+
+        <!-- 参与学生 -->
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <label class="block text-sm font-medium text-slate-700">参与学生</label>
+            <div class="flex gap-2">
+              <button onclick="selectAllGenStudents(true)" class="text-xs text-primary-600 hover:underline">全选</button>
+              <button onclick="selectAllGenStudents(false)" class="text-xs text-slate-500 hover:underline">全不选</button>
+            </div>
+          </div>
+          <div id="genStudentList" class="grid grid-cols-2 sm:grid-cols-3 gap-1.5 max-h-56 overflow-y-auto border border-slate-100 rounded-lg p-3"></div>
+          <p class="text-xs text-slate-400 mt-1">已选 <span id="genSelectedCount">0</span> 人</p>
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-2 mt-6">
+        <button onclick="closeModal('generateModal')" class="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg">取消</button>
+        <button onclick="confirmGenerate()" class="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 shadow-sm">⚡ 开始排班</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 弹窗：导入预览 ========== -->
+  <div id="importPreviewModal" class="modal hidden fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl w-full max-w-2xl p-6 max-h-[85vh] flex flex-col">
+      <h3 class="text-lg font-bold text-slate-800 mb-1">导入预览</h3>
+      <p id="importPreviewTip" class="text-sm text-slate-500 mb-4">请确认以下学生信息，去重后将添加到当前班级</p>
+      <div class="flex-1 overflow-y-auto border border-slate-100 rounded-lg">
+        <table class="w-full text-sm">
+          <thead class="sticky top-0 bg-slate-50">
+            <tr class="text-slate-600">
+              <th class="px-3 py-2 text-left font-medium">序号</th>
+              <th class="px-3 py-2 text-left font-medium">姓名</th>
+              <th class="px-3 py-2 text-left font-medium">性别</th>
+              <th class="px-3 py-2 text-left font-medium">小组</th>
+              <th class="px-3 py-2 text-left font-medium">状态</th>
+            </tr>
+          </thead>
+          <tbody id="importPreviewBody" class="divide-y divide-slate-100"></tbody>
+        </table>
+      </div>
+      <div class="flex justify-between items-center mt-4">
+        <div id="importSummary" class="text-sm text-slate-500"></div>
+        <div class="flex gap-2">
+          <button onclick="closeModal('importPreviewModal')" class="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg">取消</button>
+          <button onclick="confirmImport()" class="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700">确认导入</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 弹窗：设置 ========== -->
+  <div id="settingsModal" class="modal hidden fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+      <h3 class="text-lg font-bold text-slate-800 mb-4">班级设置</h3>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">班级名称</label>
+          <input type="text" id="settingClassName" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-400" placeholder="如：三年级二班" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">值日周期</label>
+          <select id="settingCycle" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-400">
+            <option value="weekday">周一至周五</option>
+            <option value="week">周一至周日</option>
+          </select>
+        </div>
+
+        <!-- 值日任务配置 -->
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <label class="block text-sm font-medium text-slate-700">值日任务</label>
+            <button onclick="openAddTask()" class="text-xs text-primary-600 hover:underline">+ 添加任务</button>
+          </div>
+          <div id="settingTasksList" class="space-y-2"></div>
+          <p class="text-xs text-slate-400 mt-1">任务配置用于自动排班，可设置每项任务所需人数</p>
+        </div>
+      </div>
+      <div class="border-t border-slate-100 mt-6 pt-4 space-y-2">
+        <button onclick="exportData()" class="w-full px-4 py-2 text-left text-sm text-slate-600 hover:bg-slate-50 rounded-lg">💾 导出数据（JSON）</button>
+        <label class="block w-full px-4 py-2 text-left text-sm text-slate-600 hover:bg-slate-50 rounded-lg cursor-pointer">
+          📂 导入数据（JSON）
+          <input type="file" accept=".json" onchange="importData(event)" class="hidden" />
+        </label>
+        <button onclick="clearAllData()" class="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 rounded-lg">🗑️ 清空所有数据</button>
+      </div>
+      <div class="flex justify-end gap-2 mt-6">
+        <button onclick="closeModal('settingsModal')" class="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg">取消</button>
+        <button onclick="saveSettings()" class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast 提示 -->
+  <div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] hidden">
+    <div class="bg-slate-800 text-white px-5 py-2.5 rounded-xl shadow-lg text-sm" id="toastText"></div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js"></script>
+  <script src="js/data.js?v=3"></script>
+  <script src="js/scheduler.js?v=3"></script>
+  <script src="js/app.js?v=3"></script>
+</body>
+</html>
