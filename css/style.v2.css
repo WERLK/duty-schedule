@@ -1,0 +1,72 @@
+/* 班级值日表排班系统 - 自定义样式 */
+
+/* Tab 激活态 */
+.tab-btn {
+  color: #64748b;
+  background: transparent;
+}
+.tab-btn.active {
+  color: #2563eb;
+  background: #eff6ff;
+  font-weight: 600;
+}
+
+/* 弹窗动画 */
+.modal { animation: fadeIn 0.2s ease; }
+.modal > div { animation: slideUp 0.25s ease; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+/* 值日表单元格 */
+.schedule-cell { min-height: 80px; transition: all 0.2s; }
+.schedule-cell:hover { background: #f8fafc; }
+
+.duty-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-radius: 9999px;
+  font-size: 13px;
+  margin: 2px;
+  cursor: pointer;
+  transition: all 0.15s;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+.duty-chip:hover { background: #dbeafe; border-color: #93c5fd; }
+
+/* 统计条 */
+.stats-bar {
+  height: 24px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, #3b82f6, #60a5fa);
+  transition: width 0.5s ease;
+  min-width: 24px;
+}
+
+/* 标签页容器在小屏可横向滚动 */
+@media (max-width: 640px) {
+  .tab-btn { min-width: 70px; flex: 0 0 auto; }
+  nav .max-w-7xl { padding-left: 12px; padding-right: 12px; }
+}
+
+/* 打印样式 */
+@media print {
+  nav, .tab-btn, button { display: none !important; }
+  body { background: white; }
+  .tab-content { display: block !important; }
+  section.hidden { display: block !important; }
+  #scheduleContainer { overflow: visible !important; }
+  .duty-chip { border: 1px solid #cbd5e1; }
+}
+
+/* 滚动条美化 */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: #f1f5f9; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+/* 不可值日标签已在 HTML 中用 Tailwind 处理 */
