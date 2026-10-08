@@ -211,7 +211,6 @@
               <tr class="bg-slate-50 text-slate-600">
                 <th class="px-4 py-3 text-left font-medium">序号</th>
                 <th class="px-4 py-3 text-left font-medium">姓名</th>
-                <th class="px-4 py-3 text-left font-medium">性别</th>
                 <th class="px-4 py-3 text-left font-medium">小组</th>
                 <th class="px-4 py-3 text-left font-medium">不可值日</th>
                 <th class="px-4 py-3 text-left font-medium">累计值日</th>
@@ -278,13 +277,6 @@
           <input type="text" id="studentName" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-400" placeholder="请输入学生姓名" />
         </div>
         <div>
-          <label class="block text-sm font-medium text-slate-700 mb-1">性别</label>
-          <div class="flex gap-4">
-            <label class="flex items-center gap-2 cursor-pointer"><input type="radio" name="studentGender" value="男" checked /><span>男</span></label>
-            <label class="flex items-center gap-2 cursor-pointer"><input type="radio" name="studentGender" value="女" /><span>女</span></label>
-          </div>
-        </div>
-        <div>
           <label class="block text-sm font-medium text-slate-700 mb-1">小组</label>
           <input type="text" id="studentGroup" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-400" placeholder="可选，如：第一组" />
         </div>
@@ -311,8 +303,8 @@
   <div id="batchStudentModal" class="modal hidden fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl w-full max-w-lg p-6">
       <h3 class="text-lg font-bold text-slate-800 mb-4">批量添加学生</h3>
-      <p class="text-sm text-slate-500 mb-3">每行一个学生姓名，可选格式：<code class="bg-slate-100 px-1.5 py-0.5 rounded text-xs">姓名,性别,小组</code></p>
-      <textarea id="batchStudentText" rows="10" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-400 text-sm" placeholder="张三,男,第一组&#10;李四,女,第一组&#10;王五"></textarea>
+      <p class="text-sm text-slate-500 mb-3">每行一个学生姓名，可选格式：<code class="bg-slate-100 px-1.5 py-0.5 rounded text-xs">姓名,小组</code></p>
+      <textarea id="batchStudentText" rows="10" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-400 text-sm" placeholder="张三,第一组&#10;李四,第二组&#10;王五"></textarea>
       <div class="flex justify-end gap-2 mt-4">
         <button onclick="closeModal('batchStudentModal')" class="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg">取消</button>
         <button onclick="saveBatchStudents()" class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700">添加</button>
@@ -505,7 +497,6 @@
             <tr class="text-slate-600">
               <th class="px-3 py-2 text-left font-medium">序号</th>
               <th class="px-3 py-2 text-left font-medium">姓名</th>
-              <th class="px-3 py-2 text-left font-medium">性别</th>
               <th class="px-3 py-2 text-left font-medium">小组</th>
               <th class="px-3 py-2 text-left font-medium">状态</th>
             </tr>
@@ -586,7 +577,7 @@ function getDefaultClass(name = '默认班级') {
     id: uid(),
     name,
     cycle: 'weekday', // weekday | week
-    students: [],     // {id, name, gender, group, unavailableDays:[]}
+    students: [],     // {id, name, group, unavailableDays:[]}
     tasks: [],        // {id, name, count, icon}
     schedules: {}     // { "2024-W01": { days: {...} } }
   };
@@ -717,17 +708,17 @@ function updateCycle(cycle) {
 // === 学生管理（操作当前班级）===
 function addStudent(name, gender, group, unavailableDays) {
   getCurrentClass().students.push({
-    id: uid(), name: name.trim(), gender: gender || '男',
+    id: uid(), name: name.trim(), gender: '',
     group: group || '', unavailableDays: unavailableDays || []
   });
   saveData();
 }
 
-function updateStudent(id, name, gender, group, unavailableDays) {
+function updateStudent(id, name, _gender, group, unavailableDays) {
   const s = getCurrentClass().students.find(x => x.id === id);
   if (s) {
     s.name = name.trim();
-    s.gender = gender;
+    // gender 已废弃
     s.group = group || '';
     s.unavailableDays = unavailableDays || [];
     saveData();
@@ -1204,8 +1195,7 @@ function openAddStudent() {
   editingStudentId = null;
   document.getElementById('studentModalTitle').textContent = '添加学生';
   document.getElementById('studentName').value = '';
-  document.querySelector('input[name="studentGender"][value="男"]').checked = true;
-  document.getElementById('studentGroup').value = '';
+    document.getElementById('studentGroup').value = '';
   document.querySelectorAll('.ud-cb').forEach(cb => cb.checked = false);
   openModal('studentModal');
   setTimeout(() => document.getElementById('studentName').focus(), 100);
@@ -1217,7 +1207,6 @@ function openEditStudent(id) {
   editingStudentId = id;
   document.getElementById('studentModalTitle').textContent = '编辑学生';
   document.getElementById('studentName').value = s.name;
-  document.querySelector(`input[name="studentGender"][value="${s.gender}"]`).checked = true;
   document.getElementById('studentGroup').value = s.group || '';
   const ud = s.unavailableDays || [];
   document.querySelectorAll('.ud-cb').forEach(cb => { cb.checked = ud.includes(cb.value); });
@@ -1227,15 +1216,15 @@ function openEditStudent(id) {
 function saveStudent() {
   const name = document.getElementById('studentName').value.trim();
   if (!name) { toast('请输入学生姓名'); return; }
-  const gender = document.querySelector('input[name="studentGender"]:checked').value;
+  const gender = ''; // gender 已废弃
   const group = document.getElementById('studentGroup').value.trim();
   const unavailableDays = [...document.querySelectorAll('.ud-cb:checked')].map(cb => cb.value);
 
   if (editingStudentId) {
-    updateStudent(editingStudentId, name, gender, group, unavailableDays);
+    updateStudent(editingStudentId, name, '', group, unavailableDays);
     toast('已更新');
   } else {
-    addStudent(name, gender, group, unavailableDays);
+    addStudent(name, '', group, unavailableDays);
     toast('已添加');
   }
   closeModal('studentModal');
@@ -1286,7 +1275,7 @@ function renderStudents() {
         <td class="px-4 py-3 text-slate-500">${i + 1}</td>
         <td class="px-4 py-3 font-medium text-slate-800">${s.name}</td>
         <td class="px-4 py-3">
-          <span class="px-2 py-0.5 rounded-full text-xs ${s.gender === '男' ? 'bg-blue-100 text-blue-700' : 'bg-pink-100 text-pink-700'}">${s.gender}</span>
+
         </td>
         <td class="px-4 py-3 text-slate-600">${s.group || '-'}</td>
         <td class="px-4 py-3 text-slate-500 text-xs" title="不可值日">${ud}</td>
@@ -1313,9 +1302,8 @@ function saveBatchStudents() {
   lines.forEach(line => {
     const parts = line.split(/[,，]/).map(p => p.trim());
     const name = parts[0];
-    const gender = parts[1] || '男';
-    const group = parts[2] || '';
-    if (name) { addStudent(name, gender, group, []); added++; }
+    const group = parts[1] || '';
+    if (name) { addStudent(name, '', group, []); added++; }
   });
   closeModal('batchStudentModal');
   toast(`已添加 ${added} 名学生`);
@@ -1719,7 +1707,6 @@ function clearAllData() {
 // 列名别名映射：用于智能识别 Excel 表头
 const COLUMN_ALIASES = {
   name:  ['姓名', '名字', '学生姓名', '学生', 'name', 'Name', 'NAME'],
-  gender:['性别', 'sex', 'Sex', 'SEX', 'gender'],
   group: ['小组', '组别', '组', 'group', 'Group', '班级小组']
 };
 
@@ -1736,7 +1723,7 @@ let pendingImportStudents = [];
  * 根据表头行识别列索引
  */
 function detectColumns(headerRow) {
-  const cols = { name: -1, gender: -1, group: -1 };
+  const cols = { name: -1, group: -1 };
   if (!headerRow) return cols;
   headerRow.forEach((cell, idx) => {
     const val = String(cell || '').trim();
@@ -1816,7 +1803,7 @@ function showImportPreview(students) {
         <td class="px-3 py-2 text-slate-500">${i + 1}</td>
         <td class="px-3 py-2 font-medium text-slate-800">${s.name}</td>
         <td class="px-3 py-2">
-          <span class="px-2 py-0.5 rounded-full text-xs ${s.gender === '男' ? 'bg-blue-100 text-blue-700' : 'bg-pink-100 text-pink-700'}">${s.gender}</span>
+
         </td>
         <td class="px-3 py-2 text-slate-600">${s.group || '-'}</td>
         <td class="px-3 py-2 ${isDup ? 'text-amber-600' : 'text-emerald-600'}">${isDup ? '已存在（跳过）' : '新增'}</td>
@@ -1838,7 +1825,7 @@ function confirmImport() {
   let added = 0;
   pendingImportStudents.forEach(s => {
     if (!existingNames.has(s.name)) {
-      addStudent(s.name, s.gender, s.group, []);
+      addStudent(s.name, '', s.group, []);
       existingNames.add(s.name);
       added++;
     }
@@ -1984,7 +1971,7 @@ function confirmExcelImport() {
     if (name.length > 15) continue;
 
     const group = groupCol >= 0 ? String(row[groupCol] || '').trim() : '';
-    students.push({ name, gender: '男', group });
+    students.push({ name, group });
   }
 
   if (students.length === 0) { toast('没找到有效学生，请检查映射'); return; }
@@ -2094,7 +2081,7 @@ function parseWordHtml(html) {
       if (['姓名', '名字', '小组', '性别'].includes(name)) continue;
 
       const group = groupCol >= 0 ? String(row[groupCol] || '').trim() : '';
-      students.push({ name, gender: '男', group });
+      students.push({ name, group });
     }
   });
 
@@ -2109,16 +2096,11 @@ function parseWordHtml(html) {
 function parseTextAndImport(text) {
   if (!text || !text.trim()) { toast('文档内容为空'); return; }
 
-  // 表头/关键词集合（用于跳过非数据行）
   const SKIP_WORDS = ['姓名', '名字', '性别', '小组', '组别', '组', '学号', '序号', '编号', '班级', '学生', '备注'];
   const TITLE_PATTERN = /(名单|名册|表|班级|学生名单|花名册|目录)/;
-  const GENDER_PATTERN = /^(男|女|male|female|M|F|m|f|1|0)$/i;
   const GROUP_PATTERN = /(组|group|队|班)/i;
 
-  // 1. 按行分割，过滤空行
   let lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-
-  // 2. 过滤标题行和表头词行
   lines = lines.filter(line => {
     if (TITLE_PATTERN.test(line) && line.length <= 15) return false;
     if (SKIP_WORDS.includes(line)) return false;
@@ -2129,36 +2111,27 @@ function parseTextAndImport(text) {
 
   const students = [];
 
-  // 3. 检测是否为"每3行一组"的表格格式（姓名、性别、小组）
-  // 判断依据：第2行是性别值，第3行包含"组"或"group"
-  const isTableFormat = lines.length >= 3 &&
-    GENDER_PATTERN.test(lines[1]) &&
-    GROUP_PATTERN.test(lines[2]);
-
-  if (isTableFormat) {
-    // 表格格式：每3行一组（姓名、性别、小组）
+  // 检测 Word 表格提取的"每行一个单元格"格式
+  // 连续出现 N 个姓名的模式
+  const looksLikeName = (v) => v && v.length >= 2 && v.length <= 15 && !/[\d\.\(\)（）【】\[\]<>《》]/.test(v);
+  let tableRows = Math.floor(lines.length / 3);
+  // 先尝试 3 行一组（姓名、性别、小组 - 但性别现在跳过）
+  if (tableRows >= 2 && looksLikeName(lines[0]) && GROUP_PATTERN.test(lines[2])) {
     for (let i = 0; i + 2 < lines.length; i += 3) {
-      const name = lines[i];
-      const gender = normalizeGender(lines[i + 1]);
-      const group = lines[i + 2] || '';
-      if (name && name.length >= 2 && name.length <= 15 && !/[\d]/.test(name)) {
-        students.push({ name, gender, group });
-      }
+      if (looksLikeName(lines[i])) students.push({ name: lines[i], group: lines[i + 2] || '' });
+    }
+  } else if (lines.length >= 2 && looksLikeName(lines[0]) && looksLikeName(lines[1])) {
+    // 每行一个姓名（如 Word 表格被拆成单行）
+    for (const line of lines) {
+      if (looksLikeName(line)) students.push({ name: line, group: '' });
     }
   } else {
     // 普通文本格式：每行一个学生，支持逗号/空格/制表符分隔
     for (const line of lines) {
       const parts = line.split(/[,，\s\t]+/).map(p => p.trim()).filter(Boolean);
       if (parts.length === 0) continue;
-
       const name = parts[0];
-      // 验证姓名：2-15字，不含数字和标点
-      if (!name || name.length < 2 || name.length > 15) continue;
-      if (/[\d\.\(\)（）【】\[\]<>《》]/.test(name)) continue;
-
-      const gender = parts[1] ? normalizeGender(parts[1]) : '男';
-      const group = parts[2] || '';
-      students.push({ name, gender, group });
+      if (looksLikeName(name)) students.push({ name, group: parts[1] || '' });
     }
   }
 
