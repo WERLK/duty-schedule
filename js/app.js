@@ -792,9 +792,21 @@ function importFromExcel(event) {
       const headerRow = rows[0];
       const cols = detectColumns(headerRow);
 
-      // 如果没识别到姓名列，尝试把第一列当作姓名
+      // 如果没识别到姓名列，扫描数据行找真正的姓名列（跳过序号列）
       if (cols.name === -1) {
-        cols.name = 0;
+        // 检测哪些列是序号列（全是数字且递增）
+        const numCols = rows[0].length;
+        for (let c = 0; c < numCols; c++) {
+          const sample = [];
+          for (let r = 1; r < Math.min(rows.length, 6); r++) {
+            sample.push(String(rows[r][c] || '').trim());
+          }
+          // 检查该列是否有中文姓名（包含非数字、非空、>=2字的内容）
+          const hasName = sample.some(v => v && !/^\d+$/.test(v) && v.length >= 2);
+          const isHeaderLike = sample.some(v => ['姓名', '名字', '序号', '编号'].includes(v));
+          if (hasName && !isHeaderLike) { cols.name = c; break; }
+        }
+        if (cols.name === -1) cols.name = 0; // 最后兜底
       }
 
       const students = [];
@@ -803,9 +815,11 @@ function importFromExcel(event) {
         if (!row || row.length === 0) continue;
         const name = String(row[cols.name] || '').trim();
         if (!name) continue;
-        const gender = normalizeGender(cols.gender >= 0 ? row[cols.gender] : '');
+        // 跳过纯数字（序号）、单字
+        if (/^\d+$/.test(name)) continue;
+        if (name.length < 2) continue;
         const group = String(cols.group >= 0 ? (row[cols.group] || '') : '').trim();
-        students.push({ name, gender, group });
+        students.push({ name, gender: '男', group });
       }
 
       if (students.length === 0) { toast('未识别到有效学生数据'); return; }
@@ -834,11 +848,24 @@ function importFromWord(event) {
     reader.onload = (e) => parseTextAndImport(e.target.result);
     reader.readAsText(file);
   } else {
-    // docx 用 mammoth 提取纯文本
+    // docx 用 mammoth 提取 HTML（保留表格结构）
     const reader = new FileReader();
     reader.onload = (e) => {
-      mammoth.extractRawText({ arrayBuffer: e.target.result })
-        .then(result => parseTextAndImport(result.value))
+      mammoth.convertToHtml({ arrayBuffer: e.target.result })
+        .then(result => {
+          const students = parseWordHtml(result.value);
+          if (students && students.length > 0) {
+            showImportPreview(students);
+          } else {
+            // 没找到表格，回退到纯文本解析
+            mammoth.extractRawText({ arrayBuffer: e.target.result })
+              .then(r => parseTextAndImport(r.value))
+              .catch(err => {
+                console.error(err);
+                toast('Word 解析失败，请尝试另存为 .txt 后导入');
+              });
+          }
+        })
         .catch(err => {
           console.error(err);
           toast('Word 解析失败，请尝试另存为 .txt 后导入');
@@ -847,6 +874,68 @@ function importFromWord(event) {
     reader.readAsArrayBuffer(file);
   }
   event.target.value = '';
+}
+
+/**
+ * 解析 Word 提取的 HTML 表格
+ */
+function parseWordHtml(html) {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
+  const tables = doc.querySelectorAll('table');
+  if (tables.length === 0) return null;
+
+  const students = [];
+  const NAME_KEYS = ['姓名', '名字', '学生姓名', '学生', 'name', 'Name'];
+  const GROUP_KEYS = ['小组', '组别', '组', 'group', 'Group'];
+
+  tables.forEach(table => {
+    const rows = table.querySelectorAll('tr');
+    if (rows.length < 2) return;
+
+    // 检测表头列
+    const headerCells = rows[0].querySelectorAll('th, td');
+    const headers = Array.from(headerCells).map(c => c.textContent.trim());
+    let nameCol = -1, groupCol = -1;
+    headers.forEach((h, i) => {
+      if (NAME_KEYS.includes(h)) nameCol = i;
+      if (GROUP_KEYS.includes(h)) groupCol = i;
+    });
+
+    // 如果没识别到姓名列，找第一个包含中文姓名的列（跳过纯数字序号列）
+    if (nameCol === -1) {
+      // 扫描数据行，找第一列内容不是纯数字的列
+      for (let c = 0; c < headers.length; c++) {
+        const sample = [];
+        for (let r = 1; r < Math.min(rows.length, 5); r++) {
+          const cells = rows[r].querySelectorAll('td');
+          if (cells[c]) sample.push(cells[c].textContent.trim());
+        }
+        // 检查该列是否包含中文或非数字内容（排除序号列）
+        const hasName = sample.some(v => v && !/^\d+$/.test(v) && v.length >= 2);
+        if (hasName) { nameCol = c; break; }
+      }
+      // 还没找到，默认第一列
+      if (nameCol === -1) nameCol = 0;
+    }
+
+    // 解析数据行
+    for (let r = 1; r < rows.length; r++) {
+      const cells = rows[r].querySelectorAll('td');
+      if (cells.length === 0) continue;
+      const name = (cells[nameCol]?.textContent || '').trim();
+      if (!name) continue;
+      // 跳过纯数字（序号）、单字、表头词
+      if (/^\d+$/.test(name)) continue;
+      if (name.length < 2) continue;
+      if (['姓名', '名字', '小组', '性别'].includes(name)) continue;
+
+      const group = groupCol >= 0 ? (cells[groupCol]?.textContent || '').trim() : '';
+      students.push({ name, gender: '男', group });
+    }
+  });
+
+  return students.length > 0 ? students : null;
 }
 
 /**
