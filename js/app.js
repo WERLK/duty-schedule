@@ -812,13 +812,14 @@ function confirmImport() {
 }
 
 /**
- * 从 Excel 导入
+ * 从 Excel 导入（交互式向导）
  */
+let pendingExcelRows = null;
 function importFromExcel(event) {
   const file = event.target.files[0];
   if (!file) return;
 
-  toast('正在解析 Excel...');
+  toast('正在读取 Excel...');
   const reader = new FileReader();
   reader.onload = (e) => {
     try {
@@ -829,36 +830,8 @@ function importFromExcel(event) {
 
       if (rows.length < 1) { toast('Excel 文件为空'); return; }
 
-      // 检测表头列
-      const headerRow = rows[0];
-      const cols = detectColumns(headerRow);
-
-      // 关键：表头没识别到 → 用智能列扫描（人名密度最高的列）
-      // 表头识别到了也再验证一下——如果表头识别到的列全是数字，说明识别错了
-      const nameCol = cols.name >= 0 ? cols.name : smartPickNameColumn(rows, 1);
-      // 验证：如果识别到的列全是纯数字（序号列被误判），重新扫描
-      let colIsAllDigits = true;
-      for (let r = 1; r < Math.min(rows.length, 6); r++) {
-        const v = String(rows[r]?.[nameCol] || '').trim();
-        if (v && !/^\d+$/.test(v)) { colIsAllDigits = false; break; }
-      }
-      cols.name = colIsAllDigits ? smartPickNameColumn(rows, 1) : nameCol;
-
-      const students = [];
-      for (let i = 1; i < rows.length; i++) {
-        const row = rows[i];
-        if (!row || row.length === 0) continue;
-        const name = String(row[cols.name] || '').trim();
-        if (!name) continue;
-        // 跳过纯数字（序号）、单字
-        if (/^\d+$/.test(name)) continue;
-        if (name.length < 2) continue;
-        const group = String(cols.group >= 0 ? (row[cols.group] || '') : '').trim();
-        students.push({ name, gender: '男', group });
-      }
-
-      if (students.length === 0) { toast('未识别到有效学生数据'); return; }
-      showImportPreview(students);
+      pendingExcelRows = rows;
+      openExcelMapper();
     } catch (err) {
       console.error(err);
       toast('Excel 解析失败，请检查文件格式');
@@ -866,6 +839,119 @@ function importFromExcel(event) {
   };
   reader.readAsArrayBuffer(file);
   event.target.value = '';
+}
+
+/**
+ * 打开交互式 Excel 映射器
+ */
+function openExcelMapper() {
+  const rows = pendingExcelRows;
+  if (!rows) return;
+
+  // 自动扫描猜测：找姓名列、小组列、表头起始行
+  const numCols = Math.max(...rows.map(r => r.length));
+  const nameColGuess = smartPickNameColumn(rows, 0);
+  // 猜小组列：包含"组""班"关键词的
+  let groupColGuess = -1;
+  for (let c = 0; c < numCols; c++) {
+    let hasGroup = false;
+    for (let r = 0; r < Math.min(rows.length, 10); r++) {
+      const v = String(rows[r]?.[c] || '');
+      if (/[组班]\d/.test(v) || /^第[一二三四五六七八九十]组$/.test(v)) hasGroup = true;
+    }
+    if (hasGroup) { groupColGuess = c; break; }
+  }
+  // 自动猜表头行：找第一个包含"姓名"的行
+  let headerRowGuess = 0;
+  for (let r = 0; r < Math.min(rows.length, 5); r++) {
+    const line = rows[r].join(' ');
+    if (/姓名|名字|name/i.test(line)) { headerRowGuess = r; break; }
+  }
+
+  // 构建原始表格预览（前 20 行 + 所有列）
+  let previewHtml = '<div class="overflow-x-auto border border-slate-200 rounded-lg">';
+  previewHtml += '<table class="w-full text-xs">';
+  const maxRows = Math.min(rows.length, 50);
+  for (let r = 0; r < maxRows; r++) {
+    const row = rows[r];
+    const bg = r < headerRowGuess ? 'bg-amber-50' : (r === headerRowGuess ? 'bg-blue-50 font-semibold' : '');
+    previewHtml += `<tr class="${bg} border-b border-slate-100">`;
+    previewHtml += `<td class="px-2 py-1 text-slate-400 text-right border-r border-slate-100 w-8">${r + 1}</td>`;
+    for (let c = 0; c < numCols; c++) {
+      const val = String(row[c] || '').trim();
+      const display = val.length > 30 ? val.slice(0, 30) + '…' : val;
+      previewHtml += `<td class="px-2 py-1 border-r border-slate-100 max-w-[200px] truncate" title="${val}">${display || '<span class="text-slate-300">空</span>'}</td>`;
+    }
+    previewHtml += '</tr>';
+  }
+  if (rows.length > maxRows) {
+    previewHtml += `<tr><td colspan="${numCols + 1}" class="px-2 py-2 text-center text-slate-400">还有 ${rows.length - maxRows} 行未显示</td></tr>`;
+  }
+  previewHtml += '</table></div>';
+
+  // 列选择器
+  let colOptions = '<option value="-1">忽略此列</option>';
+  for (let c = 0; c < numCols; c++) {
+    const sampleVals = [];
+    for (let r = headerRowGuess + 1; r < Math.min(rows.length, headerRowGuess + 5); r++) {
+      const v = String(rows[r]?.[c] || '').trim();
+      if (v) sampleVals.push(v);
+    }
+    const sample = sampleVals.length > 0 ? `（示例：${sampleVals.slice(0, 3).join('/')}）` : '';
+    const headerName = String(rows[headerRowGuess]?.[c] || `第${c + 1}列`).trim();
+    colOptions += `<option value="${c}">${headerName} ${sample}</option>`;
+  }
+
+  // 表头行选择器
+  let rowOptions = '';
+  for (let r = 0; r < Math.min(rows.length, 10); r++) {
+    const firstCell = String(rows[r]?.[0] || '').trim().slice(0, 15);
+    rowOptions += `<option value="${r}" ${r === headerRowGuess ? 'selected' : ''}>第${r + 1}行：${firstCell || '(空)'}</option>`;
+  }
+
+  const modal = document.getElementById('excelMapperModal');
+  modal.querySelector('#excelMapperTable').innerHTML = previewHtml;
+  modal.querySelector('#excelNameCol').innerHTML = colOptions;
+  modal.querySelector('#excelGroupCol').innerHTML = colOptions;
+  modal.querySelector('#excelHeaderRow').innerHTML = rowOptions;
+
+  // 设置默认选中
+  modal.querySelector('#excelNameCol').value = nameColGuess;
+  modal.querySelector('#excelGroupCol').value = groupColGuess;
+  modal.classList.remove('hidden');
+}
+
+/**
+ * 确认映射并生成学生列表
+ */
+function confirmExcelImport() {
+  const rows = pendingExcelRows;
+  if (!rows) return;
+  const modal = document.getElementById('excelMapperModal');
+  const headerRow = parseInt(modal.querySelector('#excelHeaderRow').value);
+  const nameCol = parseInt(modal.querySelector('#excelNameCol').value);
+  const groupCol = parseInt(modal.querySelector('#excelGroupCol').value);
+
+  if (nameCol < 0) { toast('请选择姓名所在的列'); return; }
+
+  const students = [];
+  for (let i = headerRow + 1; i < rows.length; i++) {
+    const row = rows[i];
+    if (!row || row.length === 0) continue;
+    const name = String(row[nameCol] || '').trim();
+    if (!name) continue;
+    if (/^\d+$/.test(name)) continue;
+    if (name.length < 2) continue;
+    // 跳过合并单元格的大段文字
+    if (name.length > 15) continue;
+
+    const group = groupCol >= 0 ? String(row[groupCol] || '').trim() : '';
+    students.push({ name, gender: '男', group });
+  }
+
+  if (students.length === 0) { toast('没找到有效学生，请检查映射'); return; }
+  closeModal('excelMapperModal');
+  showImportPreview(students);
 }
 
 /**
