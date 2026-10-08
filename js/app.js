@@ -712,6 +712,47 @@ function detectColumns(headerRow) {
 }
 
 /**
+ * 智能选姓名列：扫描所有数据行，选"人名密度"最高的列
+ * 彻底兜底——不管表头叫啥、有没有序号列、姓名列在哪
+ */
+function smartPickNameColumn(rows, startRow = 1) {
+  if (!rows || rows.length <= startRow) return -1;
+  const numCols = rows[startRow]?.length || 1;
+
+  let bestCol = -1, bestScore = -1;
+  for (let c = 0; c < numCols; c++) {
+    let nameLike = 0, total = 0, allDigits = 0;
+    for (let r = startRow; r < rows.length; r++) {
+      const val = String(rows[r]?.[c] || '').trim();
+      if (!val) continue;
+      total++;
+      if (/^\d+$/.test(val)) { allDigits++; continue; }
+      // 像中文姓名：2-4字，纯中文（或含·）
+      if (/^[\u4e00-\u9fa5·]{2,6}$/.test(val)) nameLike += 2;
+      // 像英文名：字母+空格，2-20字符
+      else if (/^[A-Za-z\s\.·]{2,20}$/.test(val)) nameLike += 1.5;
+      // 普通文本，2字以上
+      else if (val.length >= 2 && !/\d/.test(val)) nameLike += 0.5;
+    }
+    // 如果这列全是数字（序号列），跳过
+    if (allDigits === total && total > 0) continue;
+    // 得分 = 人名比例 * 样本量
+    const score = total > 0 ? (nameLike / total) * Math.min(total, 10) : 0;
+    if (score > bestScore) { bestScore = score; bestCol = c; }
+  }
+
+  // 如果没找到，兜底：跳过可能的序号列后取第一列
+  if (bestCol === -1) {
+    for (let c = 0; c < numCols; c++) {
+      const val = String(rows[startRow]?.[c] || '').trim();
+      if (val && !/^\d+$/.test(val)) return c;
+    }
+    bestCol = 0;
+  }
+  return bestCol;
+}
+
+/**
  * 标准化性别
  */
 function normalizeGender(g) {
@@ -792,22 +833,16 @@ function importFromExcel(event) {
       const headerRow = rows[0];
       const cols = detectColumns(headerRow);
 
-      // 如果没识别到姓名列，扫描数据行找真正的姓名列（跳过序号列）
-      if (cols.name === -1) {
-        // 检测哪些列是序号列（全是数字且递增）
-        const numCols = rows[0].length;
-        for (let c = 0; c < numCols; c++) {
-          const sample = [];
-          for (let r = 1; r < Math.min(rows.length, 6); r++) {
-            sample.push(String(rows[r][c] || '').trim());
-          }
-          // 检查该列是否有中文姓名（包含非数字、非空、>=2字的内容）
-          const hasName = sample.some(v => v && !/^\d+$/.test(v) && v.length >= 2);
-          const isHeaderLike = sample.some(v => ['姓名', '名字', '序号', '编号'].includes(v));
-          if (hasName && !isHeaderLike) { cols.name = c; break; }
-        }
-        if (cols.name === -1) cols.name = 0; // 最后兜底
+      // 关键：表头没识别到 → 用智能列扫描（人名密度最高的列）
+      // 表头识别到了也再验证一下——如果表头识别到的列全是数字，说明识别错了
+      const nameCol = cols.name >= 0 ? cols.name : smartPickNameColumn(rows, 1);
+      // 验证：如果识别到的列全是纯数字（序号列被误判），重新扫描
+      let colIsAllDigits = true;
+      for (let r = 1; r < Math.min(rows.length, 6); r++) {
+        const v = String(rows[r]?.[nameCol] || '').trim();
+        if (v && !/^\d+$/.test(v)) { colIsAllDigits = false; break; }
       }
+      cols.name = colIsAllDigits ? smartPickNameColumn(rows, 1) : nameCol;
 
       const students = [];
       for (let i = 1; i < rows.length; i++) {
@@ -890,47 +925,51 @@ function parseWordHtml(html) {
   const GROUP_KEYS = ['小组', '组别', '组', 'group', 'Group'];
 
   tables.forEach(table => {
-    const rows = table.querySelectorAll('tr');
-    if (rows.length < 2) return;
+    const trs = table.querySelectorAll('tr');
+    if (trs.length < 2) return;
 
-    // 检测表头列
-    const headerCells = rows[0].querySelectorAll('th, td');
-    const headers = Array.from(headerCells).map(c => c.textContent.trim());
+    // 先把所有行转成二维数组方便统一处理
+    const rows = [];
+    trs.forEach(tr => {
+      const cells = tr.querySelectorAll('th, td');
+      rows.push(Array.from(cells).map(c => c.textContent.trim()));
+    });
+
+    // 用和 Excel 一样的智能列扫描
+    const headerRow = rows[0];
     let nameCol = -1, groupCol = -1;
-    headers.forEach((h, i) => {
+    headerRow.forEach((h, i) => {
       if (NAME_KEYS.includes(h)) nameCol = i;
       if (GROUP_KEYS.includes(h)) groupCol = i;
     });
 
-    // 如果没识别到姓名列，找第一个包含中文姓名的列（跳过纯数字序号列）
-    if (nameCol === -1) {
-      // 扫描数据行，找第一列内容不是纯数字的列
-      for (let c = 0; c < headers.length; c++) {
-        const sample = [];
-        for (let r = 1; r < Math.min(rows.length, 5); r++) {
-          const cells = rows[r].querySelectorAll('td');
-          if (cells[c]) sample.push(cells[c].textContent.trim());
-        }
-        // 检查该列是否包含中文或非数字内容（排除序号列）
-        const hasName = sample.some(v => v && !/^\d+$/.test(v) && v.length >= 2);
-        if (hasName) { nameCol = c; break; }
+    // 没识别到表头 → 用 smartPickNameColumn
+    // 或者表头识别到了但那一列全是数字 → 也重新扫描
+    let needRescan = false;
+    if (nameCol === -1) needRescan = true;
+    else {
+      let colIsAllDigits = true;
+      for (let r = 1; r < Math.min(rows.length, 6); r++) {
+        const v = String(rows[r]?.[nameCol] || '').trim();
+        if (v && !/^\d+$/.test(v)) { colIsAllDigits = false; break; }
       }
-      // 还没找到，默认第一列
-      if (nameCol === -1) nameCol = 0;
+      if (colIsAllDigits) needRescan = true;
+    }
+    if (needRescan) {
+      nameCol = smartPickNameColumn(rows, 1);
     }
 
     // 解析数据行
     for (let r = 1; r < rows.length; r++) {
-      const cells = rows[r].querySelectorAll('td');
-      if (cells.length === 0) continue;
-      const name = (cells[nameCol]?.textContent || '').trim();
+      const row = rows[r];
+      if (!row || row.length === 0) continue;
+      const name = String(row[nameCol] || '').trim();
       if (!name) continue;
-      // 跳过纯数字（序号）、单字、表头词
       if (/^\d+$/.test(name)) continue;
       if (name.length < 2) continue;
       if (['姓名', '名字', '小组', '性别'].includes(name)) continue;
 
-      const group = groupCol >= 0 ? (cells[groupCol]?.textContent || '').trim() : '';
+      const group = groupCol >= 0 ? String(row[groupCol] || '').trim() : '';
       students.push({ name, gender: '男', group });
     }
   });
